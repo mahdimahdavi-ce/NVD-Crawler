@@ -58,3 +58,43 @@ func ExtractVulnerabilitiesLinks(query string) []string {
 
 	return vulnerabilitiesLinks
 }
+
+func ExtractVulnerabilitiesDetails(vulnerabilitiesLinks []string) []Vulnerability {
+	fmt.Println("Hit function")
+	c := colly.NewCollector()
+	vulnerSlice := make([]Vulnerability, len(vulnerabilitiesLinks))
+	index := 0
+
+	c.OnHTML("div.col-lg-9:nth-child(1) > p:nth-child(3)", func(h *colly.HTMLElement) {
+		// fmt.Println("Hit")
+		vulnerSlice[index].description = h.Text
+	})
+
+	c.OnHTML("div.col-lg-9:nth-child(1) > p:nth-child(2)", func(h *colly.HTMLElement) {
+		// fmt.Println("Hit")
+		vulnerSlice[index].description = h.Text
+	})
+
+	c.OnHTML("div.bs-callout:nth-child(1)", func(h *colly.HTMLElement) {
+		vulnerSlice[index].CVEID = h.ChildText("a")
+	})
+
+	c.OnHTML("div.bs-callout:nth-child(1) > span:nth-child(8)", func(h *colly.HTMLElement) {
+		vulnerSlice[index].publishedDate = h.Text
+	})
+
+	c.OnHTML("div.bs-callout:nth-child(1) > span:nth-child(12)", func(h *colly.HTMLElement) {
+		vulnerSlice[index].lastModified = h.Text
+	})
+
+	c.OnScraped(func(r *colly.Response) {
+		index += 1
+		if index < len(vulnerabilitiesLinks) {
+			c.Visit(vulnerabilitiesLinks[index])
+		}
+	})
+	fmt.Println(vulnerabilitiesLinks[0])
+	c.Visit(vulnerabilitiesLinks[0])
+
+	return vulnerSlice
+}
