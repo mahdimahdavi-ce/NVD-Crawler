@@ -2,28 +2,40 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"net/http"
+	"strings"
 
-	"github.com/gocolly/colly/v2"
+	"github.com/PuerkitoBio/goquery"
+	"github.com/gocolly/colly"
 )
-
-type Vulnerability struct {
-	CVEID         string
-	publishedDate string
-	lastModified  string
-	description   string
-	severity      string
-}
 
 func main() {
 	links := ExtractVulnerabilitiesLinks("redis")
+	// ExtractVulnerabilitiesDetails(links)
 	details := ExtractVulnerabilitiesDetails(links)
 	for _, vulner := range details {
 		fmt.Println(vulner.CVEID)
 		fmt.Println(vulner.description)
 		fmt.Println(vulner.publishedDate)
 		fmt.Println(vulner.lastModified)
+		fmt.Println(vulner.NVDScore)
+		fmt.Println(vulner.CNAScore)
+		for _, val := range vulner.vulnerableVersions {
+			fmt.Println(val)
+		}
 		fmt.Println("***")
 	}
+}
+
+type Vulnerability struct {
+	CVEID              string
+	publishedDate      string
+	lastModified       string
+	description        string
+	vulnerableVersions []string
+	NVDScore           string
+	CNAScore           string
 }
 
 func generateLink(query string) string {
@@ -60,41 +72,108 @@ func ExtractVulnerabilitiesLinks(query string) []string {
 }
 
 func ExtractVulnerabilitiesDetails(vulnerabilitiesLinks []string) []Vulnerability {
-	fmt.Println("Hit function")
 	c := colly.NewCollector()
+
 	vulnerSlice := make([]Vulnerability, len(vulnerabilitiesLinks))
 	index := 0
-
+	// Extract the description of vulnerability
 	c.OnHTML("div.col-lg-9:nth-child(1) > p:nth-child(3)", func(h *colly.HTMLElement) {
-		// fmt.Println("Hit")
 		vulnerSlice[index].description = h.Text
 	})
-
+	// Extract the description of vulnerability if the first one dosen't work
 	c.OnHTML("div.col-lg-9:nth-child(1) > p:nth-child(2)", func(h *colly.HTMLElement) {
-		// fmt.Println("Hit")
 		vulnerSlice[index].description = h.Text
 	})
-
+	// Extract the CVE_ID of vulnerabilty
 	c.OnHTML("div.bs-callout:nth-child(1)", func(h *colly.HTMLElement) {
 		vulnerSlice[index].CVEID = h.ChildText("a")
 	})
-
+	// Extract the publish date of vulnerabilty
 	c.OnHTML("div.bs-callout:nth-child(1) > span:nth-child(8)", func(h *colly.HTMLElement) {
 		vulnerSlice[index].publishedDate = h.Text
 	})
-
+	// Extract the last modified date of vulnerabilty
 	c.OnHTML("div.bs-callout:nth-child(1) > span:nth-child(12)", func(h *colly.HTMLElement) {
 		vulnerSlice[index].lastModified = h.Text
+	})
+	// Extract the NVD severity score of vulnerabilty
+	c.OnHTML("#Cvss3NistCalculatorAnchor", func(h *colly.HTMLElement) {
+		vulnerSlice[index].NVDScore = h.Text
+	})
+	// Extract the CNA severity score of vulnerabilty
+	c.OnHTML("#Cvss3CnaCalculatorAnchor", func(h *colly.HTMLElement) {
+		vulnerSlice[index].CNAScore = h.Text
+	})
+	// Extract vulnerable versions
+	c.OnHTML("body", func(h *colly.HTMLElement) {
+		res, err := http.Get(vulnerabilitiesLinks[index])
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer res.Body.Close()
+		if res.StatusCode != 200 {
+			log.Fatalf("status code error: %d %s", res.StatusCode, res.Status)
+		}
+
+		doc, err := goquery.NewDocumentFromReader(res.Body)
+		if err != nil {
+			fmt.Println("Error creating GoQuery document:", err)
+			return
+		}
+
+		result := []string{}
+		doc.Find("td[data-testid*='vuln-change-history']").Each(func(i int, e *goquery.Selection) {
+			// if it's a td tag that inculdes a portion of the vulnerable versions
+			if strings.Contains(e.Text(), "*cpe") {
+				extractVulnerableVersions(e.Text(), &result)
+			}
+		})
+
+		vulnerSlice[index].vulnerableVersions = result
 	})
 
 	c.OnScraped(func(r *colly.Response) {
 		index += 1
+		// fmt.Println(index)
 		if index < len(vulnerabilitiesLinks) {
 			c.Visit(vulnerabilitiesLinks[index])
 		}
 	})
-	fmt.Println(vulnerabilitiesLinks[0])
+
 	c.Visit(vulnerabilitiesLinks[0])
 
 	return vulnerSlice
+}
+
+func splitBeforeSeparator(input, separator string) []string {
+	var result []string
+	parts := strings.Split(input, separator)
+
+	for i, part := range parts {
+		if i > 0 {
+			// Add the separator to the beginning of each part except the first one
+			part = separator + part
+		}
+		result = append(result, part)
+	}
+
+	return result
+}
+
+func extractVulnerableVersions(elementText string, result *[]string) {
+	strSlice := splitBeforeSeparator(elementText, "*cpe")
+	for index, str := range strSlice {
+		if strings.HasPrefix(str, "*cpe") {
+			if strings.Contains(str, "versions") {
+				arr := splitBeforeSeparator(str, "versions")
+				str = strings.TrimSpace(arr[1])
+				if index != len(strSlice)-1 {
+					*result = append(*result, str)
+				} else {
+					s := strings.Split(str, "\n")
+					*result = append(*result, string(s[0]))
+				}
+			}
+		}
+	}
 }
