@@ -79,12 +79,14 @@ func ActivateRabbitmqConsumer() {
 	var forever chan struct{}
 
 	go func() {
+		fmt.Println("RabbitMQ is listening for incoming messages...")
 		for msg := range msgs {
 			vulnerability := new(model.Vulnerability)
 			decodeErr := json.Unmarshal(msg.Body, vulnerability)
 			if decodeErr != nil {
 				fmt.Println(decodeErr)
 			}
+			fmt.Printf("New message is found with CVEID: %s \n", vulnerability.CVEID)
 			acknowledgment := SaveVulnerability(vulnerability)
 			if acknowledgment {
 				msg.Ack(false)

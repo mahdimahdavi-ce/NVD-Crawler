@@ -42,7 +42,7 @@ func SaveVulnerability(vulnerability *model.Vulnerability) bool {
 		return false
 	}
 
-	fmt.Printf("Inserted document with _id: %v\n", result.InsertedID)
+	fmt.Printf("Inserted vulnerability with _id: %v\n", result.InsertedID)
 	return true
 
 }
