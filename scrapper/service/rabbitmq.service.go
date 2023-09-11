@@ -63,9 +63,6 @@ func SendVulnerabilitiesToDatabase(vulnerabilities []model.Vulnerability) {
 				DeliveryMode: amqp.Persistent,
 			},
 		)
+		fmt.Printf("Vulnerability with the id of %s is send to Storage service\n", vulnerability.CVEID)
 	}
-
-	ch := new(chan bool)
-
-	<-*ch
 }

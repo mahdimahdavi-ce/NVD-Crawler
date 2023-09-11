@@ -37,7 +37,7 @@ func ExtractVulnerabilitiesLinks(query string) []string {
 	c.OnHTML("tr th strong", func(h *colly.HTMLElement) {
 		vulnerability := h.ChildText("a")
 		vulnerabilitiesLinks = append(vulnerabilitiesLinks, fmt.Sprintf("https://nvd.nist.gov/vuln/detail/%v", vulnerability))
-		fmt.Printf("New link is found: %v\n", vulnerability)
+		fmt.Printf("New vulnerability link is found: %v\n", vulnerability)
 	})
 
 	c.Visit(link)
