@@ -45,7 +45,7 @@ func ExtractVulnerabilitiesLinks(query string) []string {
 	return vulnerabilitiesLinks
 }
 
-func ExtractVulnerabilitiesDetails(vulnerabilitiesLinks []string) []model.Vulnerability {
+func ExtractVulnerabilitiesDetails(query string, vulnerabilitiesLinks []string) []model.Vulnerability {
 	c := colly.NewCollector()
 
 	vulnerSlice := make([]model.Vulnerability, len(vulnerabilitiesLinks))
@@ -102,13 +102,12 @@ func ExtractVulnerabilitiesDetails(vulnerabilitiesLinks []string) []model.Vulner
 				extractVulnerableVersions(e.Text(), &result)
 			}
 		})
-
+		vulnerSlice[index].Name = query
 		vulnerSlice[index].VulnerableVersions = result
 	})
 
 	c.OnScraped(func(r *colly.Response) {
 		index += 1
-		// fmt.Println(index)
 		if index < len(vulnerabilitiesLinks) {
 			c.Visit(vulnerabilitiesLinks[index])
 		}
@@ -125,7 +124,6 @@ func splitBeforeSeparator(input, separator string) []string {
 
 	for i, part := range parts {
 		if i > 0 {
-			// Add the separator to the beginning of each part except the first one
 			part = separator + part
 		}
 		result = append(result, part)
